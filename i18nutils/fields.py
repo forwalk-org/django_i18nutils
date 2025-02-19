@@ -23,6 +23,27 @@ def to_attr_name(name: str, lang: str) -> str:
     """
     return "%s_%s" % (name, lang.replace('-', '_'))
 
+def to_translate_field(name: str, value: Union[Dict[str, str], i18nString, str, None]):
+    translate_fields = {}
+    if isinstance(value, (dict, i18nString)):
+        for lang, v in value.items():
+            if lang not in LANGUAGES:
+                raise ValueError('Language %s is not supported' % lang)
+            attr = to_attr_name(name, lang)
+            translate_fields[attr] = v
+            logger.debug("Set attribute '%s' to '%s' for language '%s'", attr, v, lang)
+    elif isinstance(value, str):
+        attr = to_attr_name(name, 'default')
+        translate_fields[attr] = value
+        logger.debug("Set default attribute '%s' to '%s'", attr, value)
+    elif value is None:
+        for lang in LANGUAGES:
+            attr = to_attr_name(name, lang)
+            translate_fields[attr] = None
+    else:
+        raise ValueError('Type %s is not supported' % type(value))
+    return translate_fields
+
 class i18nField:
     """
     A custom field class for handling internationalized fields in Django models.
@@ -54,6 +75,11 @@ class i18nField:
         """
         self._name: str = name
         setattr(cls, name, self)
+
+        # Register the base field name with translate_fields in Meta
+        add_translate_field = getattr(cls, "add_translate_field", None)
+        if callable(add_translate_field):
+            add_translate_field(name)
 
         _, _, args, kwargs = self._field.deconstruct()
 
@@ -97,17 +123,6 @@ class i18nField:
             obj (models.Model): The model instance.
             value (dict, i18nString, str, or None): The value to set.
         """
-        if isinstance(value, (dict, i18nString)):
-            for lang, v in value.items():
-                if lang not in LANGUAGES:
-                    raise ValueError('Language %s is not supported' % lang)
-                attr = to_attr_name(self._name, lang)
-                setattr(obj, attr, v)
-                logger.debug("Set attribute '%s' to '%s' for language '%s'", attr, v, lang)
-        elif value is None or isinstance(value, str):
-            attr = to_attr_name(self._name, 'default')
-            setattr(obj, attr, value)
-            logger.debug("Set default attribute '%s' to '%s'", attr, value)
-        else:
-            raise ValueError('Type %s is not supported' % type(value))
-
+        translate_fields = to_translate_field(self._name, value)
+        for filed_name, v in translate_fields.items():
+            setattr(obj, filed_name, v)
