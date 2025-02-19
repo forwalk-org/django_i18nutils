@@ -1,7 +1,6 @@
 import logging
 from typing import Union, Optional, Dict, Generator, Any, Callable, Tuple, List
 from django.conf import settings
-from django.db.models.fields import Field, CharField, TextField, SlugField
 from collections import UserString
 from django.utils import translation
 from django.utils.functional import Promise
@@ -29,9 +28,9 @@ class i18nString(Promise, UserString):
         self._data: Dict[str, str] = {}
         self.data: Union[str, Dict[str, str]] = seq
 
-    def __add__(self, other: Union[str, 'i18nString']) -> Union[str, 'i18nString']:
+    def __add__(self, other: Union[str, Promise, 'i18nString']) -> 'i18nString':
         """
-        Adds another string or i18nString to this i18nString.
+        Adds another string or i18nString or Promise to this i18nString.
 
         Args:
             other (str or i18nString): The string to add.
@@ -39,13 +38,19 @@ class i18nString(Promise, UserString):
         Returns:
             i18nString: The combined string.
         """
+
+        data = dict()
         if isinstance(other, i18nString):
-            data = dict()
             for lang in set(self.langs() + other.langs()):
                 data[lang] = self.trans(lang) + other.trans(lang)
-            return self.__class__(data)
+        elif isinstance(other, Promise):
+            for lang in self.langs():
+                with translation.override(lang):
+                    data[lang] = self.trans(lang) + str(other)
         else:
-            return self.data + str(other)
+            for lang in self.langs():
+                data[lang] = self.trans(lang) + other
+        return self.__class__(data)
 
     def __set_data(self, data: Union[str, Dict[str, str]]) -> None:
         """
@@ -163,5 +168,3 @@ def i18nDecorator(func: Callable[..., Any], formatter: Optional[Callable[[Any], 
             data = {'default': list(data.values())[0]}
         return i18nString(data)
     return wrapper
-
-    
