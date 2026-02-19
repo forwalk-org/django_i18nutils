@@ -1,4 +1,5 @@
 import logging
+import functools
 from typing import Union, Optional, Dict, Generator, Any, Callable, Tuple, List
 from django.conf import settings
 from collections import UserString
@@ -145,26 +146,27 @@ class i18nString(Promise, UserString):
         for item in self._data.items():
             yield item
 
-def i18nDecorator(func: Callable[..., Any], formatter: Optional[Callable[[Any], str]] = None) -> Callable[..., i18nString]:
+def i18nDecorator(formatter: Optional[Callable[[Any], str]] = None) -> Callable[..., i18nString]:
     """
     A decorator to generate an i18nString from a function.
 
     Args:
-        func (function): The function to decorate.
         formatter (function, optional): A function to format the result.
-
     Returns:
         function: The wrapped function that returns an i18nString.
     """
-    def wrapper(*args: Any, **kwargs: Any) -> i18nString:
-        data: Dict[str, str] = dict()
-        for lang, _ in settings.LANGUAGES:
-            with translation.override(lang):
-                if formatter:
-                    data[lang] = formatter(func(*args, **kwargs))
-                else:
-                    data[lang] = str(func(*args, **kwargs))
-        if len(set(data.values())) == 1:
-            data = {'default': list(data.values())[0]}
-        return i18nString(data)
-    return wrapper
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+        @functools.wraps(func)
+        def wrapper(*args: Any, **kwargs: Any) -> i18nString:
+            data: Dict[str, str] = dict()
+            for lang, _ in settings.LANGUAGES:
+                with translation.override(lang):
+                    if formatter:
+                        data[lang] = formatter(func(*args, **kwargs))
+                    else:
+                        data[lang] = str(func(*args, **kwargs))
+            if len(set(data.values())) == 1:
+                data = {'default': list(data.values())[0]}
+            return i18nString(data)
+        return wrapper
+    return decorator
