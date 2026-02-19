@@ -8,18 +8,18 @@ setup(
     long_description_content_type='text/markdown',
     author='Maurizio Melani',
     author_email='maurizio@forwalk.org',
-    url='https://github.com/forwalk-org/django_i18nutils',  
-    packages=find_packages(exclude=('tests',)), 
+    url='https://github.com/forwalk-org/django_i18nutils',
+    packages=find_packages(exclude=('tests',)),
     package_dir={"i18nutils": "i18nutils"},
     include_package_data=True,
     classifiers=[
         'Programming Language :: Python :: 3',
         'Framework :: Django',
-        'License :: OSI Approved :: MIT License', 
+        'License :: OSI Approved :: MIT License',
         'Operating System :: OS Independent',
     ],
     install_requires=[
-        'Django>=3.2',  
+        'Django>=3.2',
     ],
-    python_requires='>=3.6', 
+    python_requires='>=3.6',
 )
