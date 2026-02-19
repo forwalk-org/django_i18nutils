@@ -27,7 +27,7 @@ class i18nString(Promise, UserString):
             seq (str or dict): Initial string data or a dictionary of translations.
         """
         self._data: Dict[str, str] = {}
-        self.data: Union[str, Dict[str, str]] = seq
+        self.data: Union[str, Dict[str, str]] = seq if seq is not None else ''
 
     def __add__(self, other: Union[str, Promise, 'i18nString']) -> 'i18nString':
         """
@@ -116,7 +116,8 @@ class i18nString(Promise, UserString):
         default_key = 'default' if 'default' in self._data else self.DEFAULT_LANGUAGE
         if not default_key:
             return ''
-        return self._data.get(default_key, '')
+        val = self._data.get(default_key, '')
+        return str(val) if val is not None else ''
 
     def lang(self) -> str:
         """

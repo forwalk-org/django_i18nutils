@@ -112,6 +112,8 @@ class i18nField:
             value = getattr(obj, attr)
             if value:
                 data[lang] = value
+        if not data:
+            return None
         logger.debug("Retrieved i18nString data: %s", data)
         return i18nString(data)
 
