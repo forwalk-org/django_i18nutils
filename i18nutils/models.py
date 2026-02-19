@@ -1,15 +1,19 @@
 import logging
 from django.db import models
+from .queryset import TranslatableQuerySet
 
 # Set up logging for debugging
 logger = logging.getLogger(__name__)
 
-class TranslatableModelMixin:
+class TranslatableModelMixin(models.Model):
     """
     Mixin to add support for translatable fields in Django models.
 
     This mixin automatically tracks fields that should be treated as translatable.
     """
+
+    class Meta:
+        abstract = True
 
     translate_fields = []
 
@@ -38,3 +42,5 @@ class TranslatableModelMixin:
         if field_name not in cls.translate_fields:
             cls.translate_fields.append(field_name)
             logger.debug("Added field '%s' to translate_fields", field_name)
+
+    objects = TranslatableQuerySet.as_manager()

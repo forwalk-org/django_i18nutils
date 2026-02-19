@@ -95,7 +95,25 @@ print(product.name)  # Outputs the default language translation, e.g., 'Laptop'
 - **Instance Creation**: When creating instances, provide a dictionary with language codes as keys and translations as values.
 - **Field Access**: Accessing the field directly returns the translation based on the current active language.
 
-### 2. i18nString
+### 2. Querying Translatable Fields
+
+When using `values()` on a model with `TranslatableModelMixin`, translatable fields are automatically retrieved as a dictionary containing all available translations.
+
+#### Example
+
+```python
+# specific_fields will contain a dictionary for 'name' with all translations
+products = Product.objects.values('name')
+
+for p in products:
+    print(p['name'])
+    # Output: {'default': 'Laptop', 'en': 'Laptop', 'fr': 'Ordinateur portable', ...}
+
+# You can still access specific language fields directly if needed
+products_en = Product.objects.values('name_en')
+```
+
+### 3. i18nString
 
 The `i18nString` is a utility class for handling strings in multiple languages. It provides an easy way to manage and manipulate internationalized strings in your applications.
 
