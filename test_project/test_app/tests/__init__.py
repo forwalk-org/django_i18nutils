@@ -10,4 +10,4 @@ from .test_serialization import I18nJSONSerializationTestCase
 from .test_regression import I18nRegressionTestCase
 from .test_performance import I18nPerformanceTestCase
 from .test_edge_cases import I18nEdgeCasesTestCase
-from .test_queryset import TranslatableQuerySetTestCase
+from .test_queryset import TranslatableQuerySetTestCase, TranslatableQuerySetMixinComposabilityTest
