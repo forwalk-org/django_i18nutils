@@ -1,0 +1,3 @@
+<input type="{{ widget.type }}" name="{{ widget.name }}" value="{{ widget.value|default_if_none:'' }}" {%
+    include "django/forms/widgets/attrs.html" %}>
+<label for="{{ widget.attrs.id }}" class="i18n-widget-lang-label">{{ language }}</label>

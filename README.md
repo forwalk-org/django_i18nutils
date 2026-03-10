@@ -1,11 +1,16 @@
 # django_i18nutils
 
-A Django package for handling internationalized fields and strings. This package provides a flexible way to manage multilingual content within Django models.
+A Django package for handling internationalized fields and strings. This package provides two ways to manage multilingual content within Django models: **JSON-based fields** (best for flexibility) and **Multi-column fields** (traditional per-language columns).
+
+> [!NOTE]
+> **Design Philosophy**: This project is intentionally kept simple and lightweight. We avoid implementing complex translation workflows or heavy dependencies to ensure the package remains low-maintenance and easy to integrate into any Django project.
+
 
 ## Features
 
-- **i18nField** and **TranslatableModelMixin**: Easily manage multilingual fields in Django models.
-- **i18nString**: A utility class for handling internationalized strings.
+- **JSONi18nCharField** and **JSONi18nTextField**: Dynamic, single-column storage using Django's JSONField.
+- **i18nField** and **TranslatableModelMixin**: Traditional multi-column internationalized fields.
+- **i18nString**: A utility class for handling internationalized strings with support for concatenation and deferred evaluation (`Promise`).
 - **i18nDecorator**: A decorator for generating `i18nString` instances from functions.
 
 ## Installation
@@ -26,15 +31,55 @@ pip install .
 
 ## Usage
 
-### 1. i18nField and TranslatableModelMixin
+---
 
-The `i18nField` class and `TranslatableModelMixin` work together to simplify the management of multilingual fields in your Django models. The `i18nField` automatically creates separate fields for each language, and the `TranslatableModelMixin` ensures that data is handled correctly during model instance creation.
+### 1. Method A: JSON-based Translatable Fields (Recommended)
+
+This approach stores all translations in a single JSON column. It's the most flexible as it avoids database migrations when adding new languages.
 
 #### Example
 
 ```python
 # models.py
+from django.db import models
+from i18nutils.fields import JSONi18nCharField, JSONi18nTextField
 
+class Article(models.Model):
+    # Stored as {"en": "Hello", "it": "Ciao"} in a single 'title' column
+    title = JSONi18nCharField(max_length=200)
+    body = JSONi18nTextField()
+
+# Usage in a view or shell
+article = Article.objects.create(
+    title={'en': 'Hello World', 'it': 'Ciao Mondo'},
+    body={'en': 'Content here', 'it': 'Contenuto qui'}
+)
+
+from django.utils import translation
+translation.activate('it')
+print(article.title)  # Outputs: Ciao Mondo
+```
+
+#### Querying and Search
+JSON fields allow structured queries into the language keys:
+```python
+# Search for a specific language
+Article.objects.filter(title__en__icontains='Hello')
+
+# Check if a translation key exists
+Article.objects.filter(title__it__isnull=False)
+```
+
+---
+
+### 2. Method B: Multi-column Fields (Traditional)
+
+The `i18nField` class and `TranslatableModelMixin` work together to create separate fields for each language (e.g., `name_en`, `name_it`).
+
+#### Example
+
+```python
+# models.py
 from django.db import models
 from i18nutils.fields import i18nField
 from i18nutils.models import TranslatableModelMixin
@@ -46,254 +91,145 @@ class Product(TranslatableModelMixin, models.Model):
     class Meta:
         translate_fields = ['name', 'description']
 
-# Usage in a view or shell
-
-# Creating a product with translations
+# Creating a product
 product = Product.objects.create(
-    name={
-        'en': 'Laptop',
-        'fr': 'Ordinateur portable',
-        'es': 'Portátil'
-    },
-    description={
-        'en': 'A high-performance laptop.',
-        'fr': 'Un ordinateur portable haute performance.',
-        'es': 'Un portátil de alto rendimiento.'
-    }
+    name={'en': 'Laptop', 'fr': 'Ordinateur portable'},
+    description={'en': 'High-end', 'fr': 'Haut de gamme'}
 )
 
-# Accessing the translated fields based on the current language
 from django.utils import translation
-
-# Set the current language to French
 translation.activate('fr')
 print(product.name)  # Outputs: Ordinateur portable
-print(product.description)  # Outputs: Un ordinateur portable haute performance.
-
-# Set the current language to Spanish
-translation.activate('es')
-print(product.name)  # Outputs: Portátil
-print(product.description)  # Outputs: Un portátil de alto rendimiento.
-
-# Adding a new translation
-product.name = {'it': 'Portatile'}
-product.save()
-
-# Accessing the Italian translation
-translation.activate('it')
-print(product.name)  # Outputs: Portatile
-
-# Defaulting to a fallback language if translation is missing
-translation.activate('de')  # German, which is not provided
-print(product.name)  # Outputs the default language translation, e.g., 'Laptop'
 ```
 
-#### Notes
-
-- **Model Definition**: Inherit from `TranslatableModelMixin` and define `i18nField` fields in your model.
-- **Meta Class**: Specify `translate_fields` in your model's `Meta` class, listing all fields that are translatable.
-- **Instance Creation**: When creating instances, provide a dictionary with language codes as keys and translations as values.
-- **Field Access**: Accessing the field directly returns the translation based on the current active language.
-
-### 2. Querying Translatable Fields
-
-When using `values()` on a model with `TranslatableModelMixin`, translatable fields are automatically retrieved as a dictionary containing all available translations.
-
-#### Example
-
+#### Querying Translatable Fields
+You query the specific language columns directly:
 ```python
-# specific_fields will contain a dictionary for 'name' with all translations
-products = Product.objects.values('name')
+# Standard Query
+Product.objects.filter(name_en__icontains='Laptop')
 
-for p in products:
-    print(p['name'])
-    # Output: {'default': 'Laptop', 'en': 'Laptop', 'fr': 'Ordinateur portable', ...}
-
-# You can still access specific language fields directly if needed
-products_en = Product.objects.values('name_en')
+# Accessing all translations via values() (returns a dictionary)
+product_data = Product.objects.values('name').first()
+print(product_data['name']) # {'en': 'Laptop', 'fr': '...', 'default': '...'}
 ```
 
-### 3. i18nString
+---
 
-The `i18nString` is a utility class for handling strings in multiple languages. It provides an easy way to manage and manipulate internationalized strings in your applications.
+### Comparison: JSON vs Multi-column
+
+| Feature | JSON Fields (Method A) | Multi-column (Method B) |
+| :--- | :--- | :--- |
+| **Storage** | Single JSON column | One column per language |
+| **Migrations** | **None** for new languages | Requires migration for each language |
+| **Query Syntax** | `field__lang__lookup` | `field_lang__lookup` |
+| **Efficiency** | Dynamic and scalable | Fixed and strict schema |
+
+---
+
+### 3. i18nString: The Core Utility
+
+The `i18nString` is a powerful utility for handling multilingual strings. It inherits from `django.utils.functional.Promise` (compatible with `gettext_lazy`) and `UserString`.
+
+#### Features & Methods
+- **Initialization**: With a string or a dictionary.
+- **Concatenation**: Combine `i18nString` with standard `str` or Django `Promise` objects.
+- **Fallbacks**: Intelligent logic for falling back to a default language.
 
 #### Example
 
 ```python
 from i18nutils.utils import i18nString
 from django.utils import translation
+from django.utils.translation import gettext_lazy as _
 
-# Initialize with a single string (default language)
-greeting = i18nString("Hello")
+# Initialize
+greeting = i18nString({'en': 'Hello', 'fr': 'Bonjour'})
 
-# Initialize with a dictionary of translations
-greeting = i18nString({
-    'en': 'Hello',
-    'fr': 'Bonjour',
-    'es': 'Hola'
-})
-
-# Retrieve translation based on current language
-translation.activate('en')
-print(greeting)  # Outputs: Hello
+# Concatenation support
+suffix = _("!") # Lazy promise
+full_msg = greeting + " " + suffix
 
 translation.activate('fr')
-print(greeting)  # Outputs: Bonjour
+print(full_msg)  # Outputs: Bonjour !
 
-# Add two i18nString instances
-name = i18nString({'en': 'John', 'fr': 'Jean', 'es': 'Juan'})
-greeting_with_name = greeting + ' ' + name
-print(greeting_with_name)  # Outputs: Bonjour Jean (when language is set to French)
-
-# Set a new translation
+# Method: set_trans(lang_code, text)
 greeting.set_trans('it', 'Ciao')
-translation.activate('it')
-print(greeting)  # Outputs: Ciao
 
-# Get the default translation
-print(greeting.default_trans())  # Outputs: Hello (if default language is English)
-
-# Get all available languages in the i18nString
-print(greeting.langs())  # Outputs: ['en', 'fr', 'es', 'it']
-
-# Iterate over all language-translation pairs
-for lang, trans in greeting.items():
-    print(f"{lang}: {trans}")
-    # Outputs:
-    # en: Hello
-    # fr: Bonjour
-    # es: Hola
-    # it: Ciao
+# Method: items() / langs()
+for lang, text in greeting.items():
+    print(f"{lang}: {text}")
 ```
 
 #### Notes
 
-- **Initialization**: Can be initialized with a single string or a dictionary of translations.
 - **Language Management**: Automatically handles translations based on Django's current active language.
-- **Operations**: Supports string concatenation and other string operations.
+- **Technical Note**: Since it's a `Promise`, it integrates seamlessly with Django's lazy loading/evaluation.
 
-### 3. i18nDecorator
+### 4. i18nDecorator
 
-The `i18nDecorator` is a decorator that generates `i18nString` instances from functions. It allows you to create functions that return localized strings depending on the active language.
+Generates `i18nString` instances from functions by evaluating them for every language.
 
 #### Example
 
 ```python
 from i18nutils.utils import i18nDecorator
-from django.utils import translation
-import datetime
 
-# Example function that generates a greeting based on the current time
-@i18nDecorator
-def time_based_greeting():
-    current_hour = datetime.datetime.now().hour
-    if current_hour < 12:
-        return {
-            'en': 'Good morning',
-            'fr': 'Bonjour',
-            'es': 'Buenos días'
-        }
-    elif 12 <= current_hour < 18:
-        return {
-            'en': 'Good afternoon',
-            'fr': 'Bon après-midi',
-            'es': 'Buenas tardes'
-        }
-    else:
-        return {
-            'en': 'Good evening',
-            'fr': 'Bonsoir',
-            'es': 'Buenas noches'
-        }
+@i18nDecorator(formatter=lambda x: x.upper())
+def get_greeting():
+    return "welcome" 
 
-# Usage
-translation.activate('fr')
-greeting = time_based_greeting()
-print(greeting)  # Outputs the greeting in French based on the current time
-
-# Another example with a formatter function
-def uppercase_formatter(value):
-    return value.upper()
-
-@i18nDecorator(formatter=uppercase_formatter)
-def get_status_message():
-    return {
-        'en': 'All systems operational',
-        'fr': 'Tous les systèmes sont opérationnels',
-        'es': 'Todos los sistemas operativos'
-    }
-
-translation.activate('en')
-status_message = get_status_message()
-print(status_message)  # Outputs: ALL SYSTEMS OPERATIONAL
+greeting = get_greeting()
+# greeting is now an i18nString with ALL languages in UPPERCASE
 ```
 
-#### Notes
-
-- **Decorator Usage**: Use `@i18nDecorator` above your function.
-- **Function Return Value**: The decorated function should return a value that will be processed into an `i18nString`.
-- **Optional Formatter**: You can pass a formatter function to process the output.
+---
 
 ## Configuration
 
-To use `i18nField`, `TranslatableModelMixin`, `i18nString`, and `i18nDecorator`, ensure that your Django project is configured for internationalization. In your `settings.py`, you should have:
+In your `settings.py`:
 
 ```python
 LANGUAGES = [
     ('en', 'English'),
     ('fr', 'French'),
     ('es', 'Spanish'),
-    # Add more languages as needed
+    ('it', 'Italian'),
 ]
 
-# Optionally, set a default language for i18nString
+# Set a default fallback language
 I18NSTRING_DEFAULT_LANGUAGE = 'en'
 
-# Set the default language code for your project
-LANGUAGE_CODE = 'en'
-
-# Enable internationalization machinery
 USE_I18N = True
 ```
 
 ## Logging
 
-The package uses Python's standard `logging` module. To see debug messages in your Django project, you can configure logging as follows in your `settings.py`:
-
 ```python
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
-    'formatters': {  # Optional: Add formatters for better log readability
-        'verbose': {
-            'format': '[{levelname}] {name}: {message}',
-            'style': '{',
-        },
-    },
     'handlers': {
         'console': {
             'class': 'logging.StreamHandler',
-                'formatter': 'verbose',  # Use the formatter defined above
-            },
         },
+    },
     'loggers': {
         'i18nutils': {
             'handlers': ['console'],
             'level': 'DEBUG',
         },
-        # Include other loggers if needed
     },
 }
 ```
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+MIT License. See [LICENSE](LICENSE) for details.
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a pull request or open an issue on GitHub.
+Contributions are welcome!
 
 ## Contact
 
-For any questions or inquiries, please contact [Maurizio Melani](mailto:maurizio@forwalk.org).
+Maurizio Melani [maurizio@forwalk.org](mailto:maurizio@forwalk.org).

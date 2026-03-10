@@ -1,0 +1,3 @@
+<textarea name="{{ widget.name }}" {% include "django/forms/widgets/attrs.html"
+    %}>{{ widget.value|default_if_none:'' }}</textarea>
+<label for="{{ widget.attrs.id }}" class="i18n-widget-lang-label">{{ language }}</label>
