@@ -161,7 +161,8 @@ class JSONi18nFieldMixin:
         if isinstance(value, i18nString):
             value = value._data
         if isinstance(value, dict):
-            return {k: v for k, v in value.items() if v}
+            # Strip empty strings and None values so fallback logic works correctly
+            value = {k: v for k, v in value.items() if v is not None and v != ''}
         return super().get_prep_value(value)
 
     def validate(self, value, model_instance):

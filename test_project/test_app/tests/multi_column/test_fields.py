@@ -92,13 +92,31 @@ class I18nFieldTestCase(TestCase):
         self.assertEqual(new_product.description, 'Simple description')  # Fallback
 
     def test_i18nfield_empty_values(self):
-        """Test behavior with empty and None values."""
+        """Test behavior with empty and None (null) values."""
+        # Test null (no values provided)
         empty_product = Product.objects.create()
         self.test_product_ids.append(empty_product.id)
 
         translation.activate('en')
         self.assertIsNone(empty_product.name)
         self.assertIsNone(empty_product.description)
+
+        # Test blank (saving empty strings)
+        blank_product = Product.objects.create(name="", description="")
+        self.test_product_ids.append(blank_product.id)
+        
+        reloaded = Product.objects.get(id=blank_product.id)
+        self.assertEqual(str(reloaded.name), '')
+        self.assertEqual(str(reloaded.description), '')
+
+    def test_i18nfield_db_index(self):
+        """Verify that indexed multi-column fields can be queried."""
+        p = Product.objects.create(name={'en': 'Searchable'})
+        self.test_product_ids.append(p.id)
+        
+        # This will query the name_en column (standard Django behavior for i18nField descriptors)
+        results = Product.objects.filter(name_en='Searchable')
+        self.assertEqual(results.count(), 1)
 
     def test_i18nfield_database_storage(self):
         """Test how translations are stored in the database."""
