@@ -1,11 +1,11 @@
 from django.test import TestCase
 from django.utils import translation
 from django.core.cache import cache
-from test_app.models import JSONProduct
+from test_app.models import Product
 
 class JSONCacheTestCase(TestCase):
     """
-    Test cases for caching JSONProduct instances.
+    Test cases for caching Product instances with JSON-based i18n fields.
     """
 
     def setUp(self):
@@ -14,15 +14,15 @@ class JSONCacheTestCase(TestCase):
         self.test_product_ids = []
 
     def test_json_product_cache(self):
-        """Test caching and retrieving a JSONProduct instance."""
-        product = JSONProduct.objects.create(
+        """Test caching and retrieving a Product instance."""
+        product = Product.objects.create(
             name={'en': 'Cached Phone', 'fr': 'Téléphone Caché'},
             description={'en': 'Smart phone'}
         )
         self.test_product_ids.append(product.id)
         
         # Reload to get i18nString instances
-        p = JSONProduct.objects.get(id=product.id)
+        p = Product.objects.get(id=product.id)
         
         cache_key = f'product_{p.id}'
         cache.set(cache_key, p, 300)
@@ -37,6 +37,6 @@ class JSONCacheTestCase(TestCase):
         self.assertEqual(str(cached_p.name), 'Téléphone Caché')
 
     def tearDown(self):
-        JSONProduct.objects.filter(id__in=self.test_product_ids).delete()
+        Product.objects.filter(id__in=self.test_product_ids).delete()
         cache.clear()
         translation.activate('en')

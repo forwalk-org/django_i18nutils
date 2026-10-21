@@ -1,0 +1,18 @@
+/* Solo CSS necessario alla struttura JS, azzerato ogni colore, bordo o sfondo custom per ereditarlo al 100% dal Dark Theme / Admin CSS nativi. */
+.i18n-form-group.admin-advanced {
+    display: block;
+    width: 100%;
+}
+
+.i18n-form-group.admin-advanced .i18n-lang-selector-label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    color: var(--body-quiet-color, #666); /* Usare le costanti CSS natie se possibile, o un fallback pulito */
+}
+
+.i18n-form-group.admin-advanced .i18n-lang-selector {
+    margin-bottom: 10px;
+}

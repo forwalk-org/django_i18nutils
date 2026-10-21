@@ -2,12 +2,12 @@ from django.test import TestCase
 from django.utils import translation
 from django.core.cache import cache
 import json
-from test_app.models import JSONProduct
+from test_app.models import Product
 from i18nutils.utils import i18nString
 
 class JSONSerializationTestCase(TestCase):
     """
-    Test cases for JSON serialization of JSONProduct models.
+    Test cases for JSON serialization of Product models with i18n fields.
     """
 
     def setUp(self):
@@ -15,9 +15,9 @@ class JSONSerializationTestCase(TestCase):
         translation.activate('en')
         self.test_product_ids = []
 
-    def test_json_product_api_serialization(self):
-        """Test serializing JSONProduct to JSON for API responses."""
-        product = JSONProduct.objects.create(
+    def test_product_api_serialization(self):
+        """Test serializing Product to JSON for API responses."""
+        product = Product.objects.create(
             name={'en': 'JSON Laptop', 'fr': 'Ordinateur JSON'},
             description={'en': 'Cool laptop', 'fr': 'Ordinateur cool'}
         )
@@ -26,7 +26,7 @@ class JSONSerializationTestCase(TestCase):
         def serialize(lang):
             translation.activate(lang)
             # Reload to trigger from_db_value/i18nString
-            obj = JSONProduct.objects.get(id=product.id)
+            obj = Product.objects.get(id=product.id)
             return {
                 'id': obj.id,
                 'name': str(obj.name),
@@ -40,6 +40,6 @@ class JSONSerializationTestCase(TestCase):
         self.assertIn('Ordinateur JSON', fr_json)
 
     def tearDown(self):
-        JSONProduct.objects.filter(id__in=self.test_product_ids).delete()
+        Product.objects.filter(id__in=self.test_product_ids).delete()
         cache.clear()
         translation.activate('en')

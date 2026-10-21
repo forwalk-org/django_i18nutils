@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product Form Debug</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 2rem auto; }
+        .form-row { margin-bottom: 1rem; }
+        .errorlist { color: red; list-style-type: none; padding: 0; }
+        .helptext { color: #666; font-size: 0.85em; }
+        button { padding: 0.5rem 1rem; font-size: 1rem; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Test Product Form (i18nutils)</h1>
+    
+    <p>Compila il form. Le lingue per cui il campo verrà salvato dipendono dal <code>settings.LANGUAGES</code>.</p>
+
+    <form method="post" action="">
+        {% csrf_token %}
+        <table style="width: 100%;">
+            {{ form.as_table }}
+        </table>
+        <br>
+        <button type="submit">Save Product</button>
+    </form>
+</body>
+</html>

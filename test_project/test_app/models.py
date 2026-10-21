@@ -1,24 +1,13 @@
 from django.db import models
-from i18nutils.models import TranslatableModelMixin
-from i18nutils.fields import i18nField, JSONi18nCharField, JSONi18nTextField
+from i18nutils.fields import i18nCharField, i18nTextField
 
-class Product(TranslatableModelMixin, models.Model):
+
+class Product(models.Model):
     """
-    Product model with translatable fields using i18nField.
+    Product model with translatable fields stored as JSON.
     """
-    name = i18nField(models.CharField(max_length=255, null=True, blank=True, db_index=True, default=None))
-    description = i18nField(models.TextField(null=True, default=None))
+    name = i18nCharField(max_length=255, null=True, blank=True, db_index=True, help_text="This field will be interpolated in different languages. Enter the product name.")
+    description = i18nTextField(null=True, blank=True, help_text="Detailed multilingual description that will appear in the catalog.")
 
     def __str__(self):
         return str(self.name)
-
-class JSONProduct(models.Model):
-    """
-    Product model with translatable fields using JSON storage.
-    """
-    name = JSONi18nCharField(max_length=255, null=True, blank=True, db_index=True)
-    description = JSONi18nTextField(null=True, blank=True)
-
-    def __str__(self):
-        return str(self.name)
-

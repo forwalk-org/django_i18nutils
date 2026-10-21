@@ -83,9 +83,25 @@ class I18nStringTestCase(TestCase):
             # This test verifies that i18nString can be combined with Django trans
             self.assertIn('John', str(combined))
 
+    def test_i18nstring_multiple_mixed_concatenation(self):
+        """Test concatenation of i18nString + Promise (gettext) + string."""
+        with patch('django.utils.translation.gettext') as mock_gettext:
+            mock_gettext.return_value = 'Welcome'
+            django_trans = _("Welcome")
+            
+            # i18nString + Promise + str
+            combined = self.greeting + ' ' + django_trans + ' to the site!'
+            
+            translation.activate('en')
+            self.assertEqual(str(combined), 'Hello Welcome to the site!')
+
+            # Promise + i18nString + str
+            combined2 = django_trans + ' ' + self.name + '!'
+            self.assertEqual(str(combined2), 'Welcome John!')
+
     def test_i18nstring_set_trans(self):
         """Test setting new translations for i18nString."""
-        self.greeting.set_trans('pt', 'Olá')
+        self.greeting.set('pt', 'Olá')
         translation.activate('pt')
         self.assertEqual(str(self.greeting), 'Olá')
 
@@ -94,16 +110,79 @@ class I18nStringTestCase(TestCase):
         incomplete_greeting = i18nString({'en': 'Hello', 'fr': 'Bonjour'})
 
         translation.activate('zh')  # Chinese not provided
-        self.assertEqual(str(incomplete_greeting), 'Hello')  # Should fallback to default
+        self.assertEqual(str(incomplete_greeting), 'Hello') 
 
-    def test_i18nstring_default_trans(self):
-        """Test getting the default translation."""
-        default = self.greeting.default_trans()
-        self.assertEqual(default, 'Hello')  # Assuming English is default
+        # Test with I18NSTRING_FALLBACK_ROUTING=[]
+        with self.settings(I18NSTRING_FALLBACK_ROUTING=[]):
+            self.assertIsNone(incomplete_greeting.get('zh'))  # No fallback, returns None
+
+    def test_i18nstring_regional_variant_matching(self):
+        """Test fallback to base language for regional variants."""
+        msg = i18nString({'en': 'Color', 'en-GB': 'Colour', 'it': 'Colore'})
+        
+        # Exact match
+        self.assertEqual(msg.get('en-GB'), 'Colour')
+        
+        # Variant match (falls back to base 'en')
+        self.assertEqual(msg.get('en-US'), 'Color')
+        
+        # Test with empty routing
+        with self.settings(I18NSTRING_FALLBACK_ROUTING=[]):
+            self.assertIsNone(msg.get('en-US'))
+
+    def test_i18nstring_set_invalid_language(self):
+        """Test that setting an unconfigured language raises ValueError."""
+        with self.assertRaises(ValueError):
+            self.greeting.set('invalid-lang', 'Test')
+
+    def test_i18nstring_set_default_invalid_routing(self):
+        """Test that setting 'default' requires the DEFAULT_VALUE strategy."""
+        with self.settings(I18NSTRING_FALLBACK_ROUTING=[]):
+            with self.assertRaises(ValueError):
+                self.greeting.set('default', 'Test Default')
+
+    def test_i18nstring_first_available_args(self):
+        """Test FIRST_AVAILABLE strategy with explicit arguments."""
+        from i18nutils.fallbacks import FallbackStrategy
+        msg = i18nString({'fr': 'Bonjour', 'de': 'Hallo'})
+        
+        with self.settings(I18NSTRING_FALLBACK_ROUTING=[FallbackStrategy.FIRST_AVAILABLE('it', 'de')]):
+            self.assertEqual(msg.get('es'), 'Hallo')
+            
+    def test_i18nstring_first_available_noargs(self):
+        """Test FIRST_AVAILABLE strategy dynamic fallback using settings."""
+        from i18nutils.fallbacks import FallbackStrategy
+        msg = i18nString({'fr': 'Bonjour', 'de': 'Hallo'})
+        
+        with self.settings(
+            I18NSTRING_FALLBACK_ROUTING=[FallbackStrategy.FIRST_AVAILABLE],
+            LANGUAGE_CODE='it',
+            LANGUAGES=[('en', 'English'), ('de', 'German')]
+        ):
+            self.assertEqual(msg.get('es'), 'Hallo')
+
+    def test_i18nstring_static_value_fallback(self):
+        """Test STATIC_VALUE strategy returns default or custom text."""
+        from i18nutils.fallbacks import FallbackStrategy
+        msg = i18nString({'fr': 'Bonjour'})
+        
+        with self.settings(I18NSTRING_FALLBACK_ROUTING=[FallbackStrategy.STATIC_VALUE]):
+            self.assertEqual(msg.get('es'), 'untranslated text')
+            
+        with self.settings(I18NSTRING_FALLBACK_ROUTING=[FallbackStrategy.STATIC_VALUE('Custom')]):
+            self.assertEqual(msg.get('es'), 'Custom')
+            
+    def test_i18nstring_get_fallback_override(self):
+        """Test get() with a local fallback_routing bypass."""
+        from i18nutils.fallbacks import FallbackStrategy
+        msg = i18nString({'fr': 'Bonjour'})
+        
+        # Override the defaults
+        self.assertEqual(msg.get('es', fallback_routing=[FallbackStrategy.STATIC_VALUE('Local')]), 'Local')
 
     def test_i18nstring_langs(self):
         """Test retrieving all available languages."""
-        langs = self.greeting.langs()
+        langs = self.greeting.languages()
         expected_langs = {'en', 'fr', 'es', 'de', 'it'}
         self.assertEqual(set(langs), expected_langs)
 
@@ -137,7 +216,7 @@ class I18nStringTestCase(TestCase):
         self.assertEqual(str(simple_string), 'Simple text')
 
         translation.activate('fr')
-        self.assertEqual(str(simple_string), 'Simple text')  # Same for all languages
+        self.assertEqual(str(simple_string), 'Simple text')
 
     def test_i18nstring_complex_concatenation(self):
         """Test complex concatenation scenarios."""

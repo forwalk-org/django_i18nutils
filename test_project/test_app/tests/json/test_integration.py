@@ -2,11 +2,11 @@ from django.test import TestCase
 from django.utils import translation
 from django.core.cache import cache
 from i18nutils.utils import i18nString
-from test_app.models import JSONProduct
+from test_app.models import Product
 
 class JSONIntegrationTestCase(TestCase):
     """
-    Integration test cases for JSONi18nField, replicated from test_integration.py.
+    Integration test cases for i18nCharField and i18nTextField.
     """
 
     def setUp(self):
@@ -17,7 +17,7 @@ class JSONIntegrationTestCase(TestCase):
     def test_json_multilingual_cms_scenario(self):
         """Test a complete multilingual CMS scenario with JSON storage."""
         articles = [
-            JSONProduct.objects.create(
+            Product.objects.create(
                 name={
                     'en': 'Comprehensive Guide to Web Development',
                     'fr': 'Guide Complet du Développement Web',
@@ -31,7 +31,7 @@ class JSONIntegrationTestCase(TestCase):
                     'de': 'Lernen Sie moderne Webentwicklungstechniken und bewährte Praktiken'
                 }
             ),
-            JSONProduct.objects.create(
+            Product.objects.create(
                 name={
                     'en': 'Advanced JavaScript Concepts',
                     'fr': 'Concepts JavaScript Avancés'
@@ -50,7 +50,7 @@ class JSONIntegrationTestCase(TestCase):
             translation.activate(lang)
             for i, article in enumerate(articles):
                 # Reload from DB to ensure i18nString conversion
-                a = JSONProduct.objects.get(id=article.id)
+                a = Product.objects.get(id=article.id)
                 self.assertIsNotNone(a.name)
                 self.assertGreater(len(str(a.name)), 0)
 
@@ -69,7 +69,7 @@ class JSONIntegrationTestCase(TestCase):
             if i < 2:
                 translations['fr'] = f'Produit API {i+1}'
             
-            product = JSONProduct.objects.create(
+            product = Product.objects.create(
                 name=translations,
                 description={'en': f'API description {i+1}'}
             )
@@ -81,7 +81,7 @@ class JSONIntegrationTestCase(TestCase):
             data = []
             for p in products:
                 # Reloading is key for JSON fields
-                obj = JSONProduct.objects.get(id=p.id)
+                obj = Product.objects.get(id=p.id)
                 data.append({
                     'name': str(obj.name),
                     'description': str(obj.description)
@@ -97,14 +97,14 @@ class JSONIntegrationTestCase(TestCase):
     def test_json_caching(self):
         """Test caching behavior with JSON-based translatable models."""
         cache_key = 'json_cached_product'
-        product = JSONProduct.objects.create(
+        product = Product.objects.create(
             name={'en': 'Cached', 'fr': 'Caché'},
             description={'en': 'Desc'}
         )
         self.test_product_ids.append(product.id)
         
         # We must store the reloaded object or the i18nString in cache
-        p_to_cache = JSONProduct.objects.get(id=product.id)
+        p_to_cache = Product.objects.get(id=product.id)
         cache.set(cache_key, p_to_cache, 300)
 
         translation.activate('fr')
@@ -112,6 +112,6 @@ class JSONIntegrationTestCase(TestCase):
         self.assertEqual(str(cached_p.name), 'Caché')
 
     def tearDown(self):
-        JSONProduct.objects.filter(id__in=self.test_product_ids).delete()
+        Product.objects.filter(id__in=self.test_product_ids).delete()
         cache.clear()
         translation.activate('en')

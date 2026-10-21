@@ -1,13 +1,12 @@
 from django.test import TestCase
 from django.utils import translation
 from django.core.cache import cache
-from test_app.models import JSONProduct
+from test_app.models import Product
 from i18nutils.utils import i18nString
 
 class JSONFieldTestCase(TestCase):
     """
-    Test cases for JSONi18nCharField and JSONi18nTextField functionality,
-    mirroring multi_column/test_fields.py.
+    Test cases for i18nCharField and i18nTextField functionality.
     """
 
     def setUp(self):
@@ -15,7 +14,7 @@ class JSONFieldTestCase(TestCase):
         cache.clear()
         translation.activate('en')
 
-        self.product = JSONProduct.objects.create(
+        self.product = Product.objects.create(
             name={
                 'en': 'Laptop',
                 'fr': 'Ordinateur portable',
@@ -34,7 +33,7 @@ class JSONFieldTestCase(TestCase):
     def test_json_field_value_retrieval(self):
         """Test retrieval of translations for JSON fields."""
         # Reload to ensure from_db_value is called
-        p = JSONProduct.objects.get(id=self.product.id)
+        p = Product.objects.get(id=self.product.id)
         
         translation.activate('en')
         self.assertEqual(str(p.name), 'Laptop')
@@ -46,7 +45,7 @@ class JSONFieldTestCase(TestCase):
 
     def test_json_field_default_fallback(self):
         """Test fallback for JSON fields."""
-        p = JSONProduct.objects.get(id=self.product.id)
+        p = Product.objects.get(id=self.product.id)
         translation.activate('zh')
         self.assertEqual(str(p.name), 'Laptop')
         self.assertEqual(str(p.description), 'High-performance laptop.')
@@ -57,13 +56,13 @@ class JSONFieldTestCase(TestCase):
         p.name = {'it': 'Portatile'}
         p.save()
 
-        reloaded = JSONProduct.objects.get(id=p.id)
+        reloaded = Product.objects.get(id=p.id)
         translation.activate('it')
         self.assertEqual(str(reloaded.name), 'Portatile')
 
     def test_json_field_single_string_assignment(self):
         """Test assigning a single string to a JSON field."""
-        new_product = JSONProduct.objects.create(
+        new_product = Product.objects.create(
             name='Simple Product',
             description='Simple description'
         )
@@ -77,15 +76,15 @@ class JSONFieldTestCase(TestCase):
 
     def test_json_field_empty_values(self):
         """Test empty values in JSON fields."""
-        empty = JSONProduct.objects.create()
+        empty = Product.objects.create()
         self.test_product_ids.append(empty.id)
 
-        reloaded = JSONProduct.objects.get(id=empty.id)
+        reloaded = Product.objects.get(id=empty.id)
         self.assertEqual(str(reloaded.name), 'None') # i18nString(None) behavior
         self.assertEqual(str(reloaded.description), 'None')
 
     def tearDown(self):
         """Clean up."""
-        JSONProduct.objects.filter(id__in=self.test_product_ids).delete()
+        Product.objects.filter(id__in=self.test_product_ids).delete()
         cache.clear()
         translation.activate('en')

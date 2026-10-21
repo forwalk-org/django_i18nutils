@@ -72,14 +72,12 @@ class I18nWidget(forms.MultiWidget):
         if not isinstance(value, i18nString):
             value = i18nString(value)
 
+        # Get exact translations without fallback logic
+        exact_translations = value.get_translations()
+
         for i, locale in enumerate(self.locales):
             lng = locale[0]
-            val = value.trans(lng)
-            # If the translated value is the default from another fallback or empty, 
-            # we need to be careful. In forms, we usually want the exact value stored.
-            # i18nString.trans() falls back. We should use internal `_data` or similar 
-            # to populate exactly what's there.
-            exact_val = value._data.get(lng)
+            exact_val = exact_translations.get(lng)
             data.append(exact_val)
 
         return data
@@ -88,15 +86,18 @@ class I18nWidget(forms.MultiWidget):
         if self.is_localized:
             for widget in self.widgets:
                 widget.is_localized = self.is_localized
-        if not isinstance(value, list):
+                
+        if not isinstance(value, list) and value is not None:
             value = self.decompress(value)
+        elif value is None:
+            value = [None] * len(self.locales)
             
-        output = []
         final_attrs = self.build_attrs(attrs or dict())
         id_ = final_attrs.get("id", None)
         
         from django.utils.safestring import mark_safe
         
+        output = []
         for i, widget in enumerate(self.widgets):
             locale = self.locales[i]
             lang = locale[0]
@@ -110,15 +111,26 @@ class I18nWidget(forms.MultiWidget):
                 
             if id_:
                 final_attrs = dict(final_attrs, id="%s_%s" % (id_, i), title=lang)
-            output.append(
-                widget.render(
-                    name + "_%s" % i, widget_value, final_attrs, renderer=renderer
-                )
+            
+            rendered_field = widget.render(
+                name + "_%s" % i, widget_value, final_attrs, renderer=renderer
             )
-        return mark_safe(self.format_output(output))
+            
+            output.append(
+                f'<div class="i18n-lang-container" data-i18n-lang="{lang}">'
+                f'{rendered_field}'
+                f'</div>'
+            )
 
-    def format_output(self, rendered_widgets) -> str:
-        return '<div class="i18n-form-group">\n%s\n</div>' % "\n".join(rendered_widgets)
+        return mark_safe(self.format_output(name, output))
+
+    def format_output(self, name: str, rendered_widgets: List[str]) -> str:
+        html = f"""
+        <div id="i18n-wrapper-{name}" class="i18n-form-group">
+            {"".join(rendered_widgets)}
+        </div>
+        """
+        return html
 
 
 class I18nTextInput(I18nWidget):
@@ -126,6 +138,60 @@ class I18nTextInput(I18nWidget):
 
 class I18nTextarea(I18nWidget):
     widget = TextArea
+
+
+# --- Advanced Widgets for Django Admin ---
+
+class I18nAdminWidget(I18nWidget):
+    """
+    Advanced widget for Django Admin, providing a select dropdown to switch languages
+    using vanilla JS defined in an external static file.
+    """
+    class Media:
+        css = {
+            'all': ('i18nutils/css/i18n_admin_widget.css',)
+        }
+        js = ('i18nutils/js/i18n_admin_widget.js',)
+
+    def format_output(self, name: str, rendered_widgets: List[str]) -> str:
+        # Build language selector
+        select_options = []
+        for locale in self.locales:
+            select_options.append(f'<option value="{locale[0]}">{locale[1]}</option>')
+        select_html = f'<select class="i18n-lang-selector">{"".join(select_options)}</select>'
+
+        html = f"""
+        <div id="i18n-wrapper-{name}" class="i18n-form-group admin-advanced">
+            <span class="i18n-lang-selector-label">Language to edit/insert:</span>
+            {select_html}
+            {"".join(rendered_widgets)}
+        </div>
+        """
+        return html
+
+class I18nAdminTextInput(I18nAdminWidget):
+    class AdminInput(TextInput):
+        template_name = "i18n/widgets/admin_input.html"
+    
+    widget = AdminInput
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for w in self.widgets:
+            existing_class = w.attrs.get('class', '')
+            w.attrs['class'] = f"{existing_class} vTextField".strip()
+
+class I18nAdminTextarea(I18nAdminWidget):
+    class AdminTextArea(TextArea):
+        template_name = "i18n/widgets/admin_textarea.html"
+        
+    widget = AdminTextArea
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for w in self.widgets:
+            existing_class = w.attrs.get('class', '')
+            w.attrs['class'] = f"{existing_class} vLargeTextField".strip()
 
 
 class I18nFormField(forms.MultiValueField):
@@ -145,14 +211,14 @@ class I18nFormField(forms.MultiValueField):
         found_all = True
         clean_data = []
         errors: List[str] = []
-        
-        # If value is already an i18nString (e.g. initial disabled field), bypass clean logic
+
+        # If value is already an i18nString (e.g. initial disabled field), decompose it
         if isinstance(value, i18nString):
-            clean_data = self.widget.decompress(value)
-        
+            value = self.widget.decompress(value)
+
         if value is None:
             value = []
-            
+
         for i, field in enumerate(self.fields):
             try:
                 field_value = value[i]
@@ -203,8 +269,12 @@ class I18nFormField(forms.MultiValueField):
         kwargs.pop("decoder", None)
 
         defaults.update(**kwargs)
+        base_label = defaults.get("label", "")
         for lngcode, lngname in self.locales:
-            defaults["label"] = "%s (%s)" % (defaults.get("label", ""), lngcode)
+            if base_label:
+                defaults["label"] = f"{base_label} ({lngcode})"
+            else:
+                defaults["label"] = lngcode
             field = forms.CharField(**defaults)
             field.locale = lngcode
             fields.append(field)

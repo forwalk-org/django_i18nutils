@@ -133,5 +133,11 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+from i18nutils.fallbacks import FallbackStrategy
+
 # i18n settings
-I18NSTRING_DEFAULT_LANGUAGE = 'en'
+I18NSTRING_FALLBACK_ROUTING = [
+    FallbackStrategy.REGIONAL_VARIANT,
+    FallbackStrategy.DEFAULT_VALUE,
+    FallbackStrategy.FIRST_AVAILABLE('en')
+]
